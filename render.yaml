@@ -8,21 +8,26 @@ services:
 
     buildCommand: |
       set -euo pipefail
-      echo "Starting build (preserve newlines)..."
+      echo "Starting build..."
 
-      # If Poetry is present, prefer it
-      if command -v poetry >/dev/null 2>&1; then
-        echo "Poetry found: installing with poetry"
-        poetry install --no-interaction --no-ansi
-        echo "Running migrations & collectstatic via poetry run python"
-        poetry run python manage.py migrate --noinput
-        poetry run python manage.py collectstatic --noinput
-        echo "Build finished (poetry)."
-        exit 0
+      # If pyproject.toml exists, prefer poetry (if available)
+      if [ -f pyproject.toml ]; then
+        if command -v poetry >/dev/null 2>&1; then
+          echo "pyproject.toml found and poetry present: installing with poetry"
+          poetry install --no-interaction --no-ansi
+          echo "Running migrations & collectstatic via poetry run python"
+          poetry run python manage.py migrate --noinput
+          poetry run python manage.py collectstatic --noinput
+          echo "Build finished (poetry)."
+          exit 0
+        else
+          echo "pyproject.toml found but poetry not available; aborting"
+          exit 1
+        fi
       fi
 
-      # Otherwise create a venv and use pip inside it
-      echo "Poetry not found: creating .venv and installing via pip"
+      # Otherwise fall back to venv + pip using requirements.txt
+      echo "No pyproject.toml: creating .venv and installing via pip"
       python3 -m venv .venv
       .venv/bin/python -m pip install --upgrade pip setuptools wheel
 
@@ -41,8 +46,8 @@ services:
 
     startCommand: |
       set -euo pipefail
-      # prefer to run via poetry if available; otherwise use venv gunicorn
-      if command -v poetry >/dev/null 2>&1; then
+      # prefer poetry runtime only if pyproject.toml exists and poetry is installed
+      if [ -f pyproject.toml ] && command -v poetry >/dev/null 2>&1; then
         echo "Starting with poetry run gunicorn..."
         exec poetry run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
       fi
