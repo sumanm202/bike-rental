@@ -6,35 +6,54 @@ services:
     plan: free
     branch: main
 
-    buildCommand: >
-      bash -lc '
+    buildCommand: |
       set -euo pipefail
-      echo "Create venv..."
+      echo "Starting build (preserve newlines)..."
+
+      # If Poetry is present, prefer it
+      if command -v poetry >/dev/null 2>&1; then
+        echo "Poetry found: installing with poetry"
+        poetry install --no-interaction --no-ansi
+        echo "Running migrations & collectstatic via poetry run python"
+        poetry run python manage.py migrate --noinput
+        poetry run python manage.py collectstatic --noinput
+        echo "Build finished (poetry)."
+        exit 0
+      fi
+
+      # Otherwise create a venv and use pip inside it
+      echo "Poetry not found: creating .venv and installing via pip"
       python3 -m venv .venv
-      # use pip from the venv directly to avoid system pip restrictions
       .venv/bin/python -m pip install --upgrade pip setuptools wheel
-      echo "Installing requirements..."
+
       if [ -f requirements.txt ]; then
         .venv/bin/pip install -r requirements.txt
       else
-        echo "ERROR: requirements.txt not found"; exit 1;
+        echo "ERROR: requirements.txt not found; aborting"
+        exit 1
       fi
-      echo "Running migrations and collectstatic..."
+
+      echo "Running migrations & collectstatic via .venv python"
       .venv/bin/python manage.py migrate --noinput
       .venv/bin/python manage.py collectstatic --noinput
-      echo "Build finished."
-      '
 
-    # Start using the venv gunicorn binary so runtime uses the same environment
-    startCommand: >
-      bash -lc '
+      echo "Build finished (venv)."
+
+    startCommand: |
       set -euo pipefail
-      if [ -x .venv/bin/gunicorn ]; then
-        exec .venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
-      else
-        echo "ERROR: gunicorn not found in .venv; ensure gunicorn is in requirements.txt"; exit 1
+      # prefer to run via poetry if available; otherwise use venv gunicorn
+      if command -v poetry >/dev/null 2>&1; then
+        echo "Starting with poetry run gunicorn..."
+        exec poetry run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
       fi
-      '
+
+      if [ -x .venv/bin/gunicorn ]; then
+        echo "Starting with .venv/bin/gunicorn..."
+        exec .venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      fi
+
+      echo "ERROR: gunicorn not found. Make sure gunicorn is in requirements.txt or pyproject.toml"
+      exit 1
 
     healthCheckPath: /
 
