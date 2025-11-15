@@ -1,0 +1,26 @@
+version: v1
+services:
+  - type: web
+    name: bike-rental-web
+    env: python
+    plan: free
+    branch: main
+    buildCommand: pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && python manage.py migrate --noinput && python manage.py collectstatic --noinput
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        scope: private
+      - key: DEBUG
+        value: 'False'
+        scope: private
+      - key: STRIPE_SECRET_KEY
+        scope: private
+      - key: STRIPE_PUBLISHABLE_KEY
+        scope: private
+      - key: STRIPE_WEBHOOK_SECRET
+        scope: private
+      - key: DATABASE_URL
+        fromService: bike-rental-db
+  - type: postgres
+    name: bike-rental-db
+    plan: free
