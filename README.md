@@ -353,4 +353,5 @@ MIT (or your choice)
 **Questions?** Check the API endpoints at http://127.0.0.1:8000/ or review the code in `rentals/` folder.
 #   b i k e - r e n t a l  
  #   b i k e - r e n t a l  
+ #   b i k e - r e n t a l  
  
