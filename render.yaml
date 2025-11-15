@@ -1,18 +1,16 @@
 version: 1
 services:
   - type: web
-    name: bike-rental-web-jkgi
+    name: bike-rental-web
     env: python
     plan: free
     branch: main
     buildCommand: >
       python -m pip install --upgrade pip setuptools wheel && \
-      python -m pip install -r requirements.txt
-    releaseCommand: >
+      python -m pip install -r requirements.txt && \
       python manage.py migrate --noinput && \
       python manage.py collectstatic --noinput
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
-    healthCheckPath: /
     envVars:
       - key: SECRET_KEY
         value: ""
