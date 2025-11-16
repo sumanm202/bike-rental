@@ -1,0 +1,83 @@
+version: 1
+services:
+  - type: web
+    name: bike-rental-web-jkgi
+    env: python
+    plan: free
+    branch: main
+
+    buildCommand: |
+      set -euo pipefail
+      echo "Starting build..."
+
+      # If pyproject.toml exists, prefer poetry (if available)
+      if [ -f pyproject.toml ]; then
+        if command -v poetry >/dev/null 2>&1; then
+          echo "pyproject.toml found and poetry present: installing with poetry"
+          poetry install --no-interaction --no-ansi
+          echo "Running migrations & collectstatic via poetry run python"
+          poetry run python manage.py migrate --noinput
+          poetry run python manage.py collectstatic --noinput
+          echo "Build finished (poetry)."
+          exit 0
+        else
+          echo "pyproject.toml found but poetry not available; aborting"
+          exit 1
+        fi
+      fi
+
+      # Otherwise fall back to venv + pip using requirements.txt
+      echo "No pyproject.toml: creating .venv and installing via pip"
+      python3 -m venv .venv
+      .venv/bin/python -m pip install --upgrade pip setuptools wheel
+
+      if [ -f requirements.txt ]; then
+        .venv/bin/pip install -r requirements.txt
+      else
+        echo "ERROR: requirements.txt not found; aborting"
+        exit 1
+      fi
+
+      echo "Running migrations & collectstatic via .venv python"
+      .venv/bin/python manage.py migrate --noinput
+      .venv/bin/python manage.py collectstatic --noinput
+
+      echo "Build finished (venv)."
+
+    startCommand: |
+      set -euo pipefail
+      # prefer poetry runtime only if pyproject.toml exists and poetry is installed
+      if [ -f pyproject.toml ] && command -v poetry >/dev/null 2>&1; then
+        echo "Starting with poetry run gunicorn..."
+        exec poetry run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      fi
+
+      if [ -x .venv/bin/gunicorn ]; then
+        echo "Starting with .venv/bin/gunicorn..."
+        exec .venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+      fi
+
+      echo "ERROR: gunicorn not found. Make sure gunicorn is in requirements.txt or pyproject.toml"
+      exit 1
+
+    healthCheckPath: /
+
+    envVars:
+      - key: SECRET_KEY
+        value: ""
+        scope: private
+      - key: DEBUG
+        value: "False"
+        scope: private
+      - key: STRIPE_SECRET_KEY
+        value: ""
+        scope: private
+      - key: STRIPE_PUBLISHABLE_KEY
+        value: ""
+        scope: private
+      - key: STRIPE_WEBHOOK_SECRET
+        value: ""
+        scope: private
+      - key: DATABASE_URL
+        value: ""
+        scope: private
