@@ -57,10 +57,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
-DATABASE_URL = env('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
-DATABASES = {
-    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
-}
+# Read DATABASE_URL but allow empty string (some hosts set empty values).
+# If DATABASE_URL is empty or not provided, fall back to a local sqlite file.
+DATABASE_URL = env('DATABASE_URL', default='')
+if DATABASE_URL and DATABASE_URL.strip():
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = []
 
